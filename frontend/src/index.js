@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css'; // Učitavamo Bootstrap stilove
 import './index.css';
 import App from './App';
+import HomeScreen from './screens/HomeScreen';
+import ExerciseListScreen from './screens/ExerciseListScreen';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -14,7 +16,9 @@ import {
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route path="/" element={<App />}>
-      {/* Kasnije ćemo ovde dodati <Route path="/login" element={<LoginScreen />} /> itd. */}
+      <Route index={true} path="/" element={<HomeScreen />} />
+      {/* Dodajemo novu rutu ovde */}
+      <Route path="/exercises" element={<ExerciseListScreen />} />
     </Route>
   )
 );
