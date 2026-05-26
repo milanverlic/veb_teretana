@@ -20,9 +20,11 @@ const HomeScreen = () => {
           {isUserLoggedIn ? (
             <Row className="gy-3 justify-content-center">
               <Col md={10}>
-                <Button variant="primary" size="lg" className="w-100 py-3 shadow d-flex align-items-center justify-content-center fs-4">
-                  <FaPlus className="me-3" /> Započni PRAZAN trening
-                </Button>
+                <LinkContainer to="/workout/active">
+                  <Button variant="primary" size="lg" className="w-100 py-3 shadow d-flex align-items-center justify-content-center fs-4">
+                    <FaPlus className="me-3" /> Započni PRAZAN trening
+                  </Button>
+                </LinkContainer>
               </Col>
             </Row>
           ) : (

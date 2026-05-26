@@ -5,6 +5,9 @@ import './index.css';
 import App from './App';
 import HomeScreen from './screens/HomeScreen';
 import ExerciseListScreen from './screens/ExerciseListScreen';
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import ActiveWorkoutScreen from './screens/ActiveWorkoutScreen';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -19,6 +22,9 @@ const router = createBrowserRouter(
       <Route index={true} path="/" element={<HomeScreen />} />
       {/* Dodajemo novu rutu ovde */}
       <Route path="/exercises" element={<ExerciseListScreen />} />
+      <Route path="/login" element={<LoginScreen />} />
+      <Route path="/register" element={<RegisterScreen />} />
+      <Route path="/workout/active" element={<ActiveWorkoutScreen />} />
     </Route>
   )
 );
