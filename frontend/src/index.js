@@ -8,6 +8,8 @@ import ExerciseListScreen from './screens/ExerciseListScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import ActiveWorkoutScreen from './screens/ActiveWorkoutScreen';
+import HistoryScreen from './screens/HistoryScreen';
+import CommunityScreen from './screens/CommunityScreen';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -25,6 +27,8 @@ const router = createBrowserRouter(
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/register" element={<RegisterScreen />} />
       <Route path="/workout/active" element={<ActiveWorkoutScreen />} />
+      <Route path="/history" element={<HistoryScreen />} />
+      <Route path="/community" element={<CommunityScreen />} />
     </Route>
   )
 );

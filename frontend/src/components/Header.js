@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navbar, Nav, Container } from 'react-bootstrap';
 import { LinkContainer } from 'react-router-bootstrap';
-import { FaDumbbell, FaUser, FaBook } from 'react-icons/fa';
+import { FaDumbbell, FaUser, FaBook, FaClock, FaUsers } from 'react-icons/fa';
 
 // ... importi ...
 const Header = () => {
@@ -21,6 +21,16 @@ const Header = () => {
               <LinkContainer to="/exercises">
                 <Nav.Link className="me-3">
                   <FaBook className="me-1" /> Baza Vežbi
+                </Nav.Link>
+              </LinkContainer>
+              <LinkContainer to="/history">
+                <Nav.Link className="me-3">
+                  <FaClock className="me-1" /> Istorija
+                </Nav.Link>
+              </LinkContainer>
+              <LinkContainer to="/community">
+                <Nav.Link className="me-3">
+                  <FaUsers className="me-1" /> Zajednica
                 </Nav.Link>
               </LinkContainer>
               
