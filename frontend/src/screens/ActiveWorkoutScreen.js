@@ -98,7 +98,7 @@ const ActiveWorkoutScreen = () => {
       </div>
 
       {workout.exercises.map((exercise) => (
-        <Card key={exercise.id} className="mb-4 shadow-sm border-0 bg-light">
+        <Card key={exercise.id} className="mb-4 shadow-sm border-0">
           <Card.Body>
             <h5 className="text-primary mb-3 fw-bold">{exercise.name}</h5>
             <Table responsive borderless className="align-middle mb-0">

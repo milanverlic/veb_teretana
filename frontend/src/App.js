@@ -10,6 +10,12 @@ const App = () => {
   return (
     <>
       <Header />
+
+    <div className="app-background">
+        <div className="shape shape-1"></div>
+        <div className="shape shape-2"></div>
+      </div>
+
       <main className="py-3">
         <Container>
           <Outlet />
