@@ -43,7 +43,7 @@ const CommunityScreen = () => {
             </div>
             
             <Card.Title className="text-primary fw-bold">{post.workoutName}</Card.Title>
-            <Card.Text className="text-dark">{post.description}</Card.Text>
+            <Card.Text className="text-light">{post.description}</Card.Text>
             
             <div className="d-flex justify-content-between align-items-center mt-4">
               <Button 

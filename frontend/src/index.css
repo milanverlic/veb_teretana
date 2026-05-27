@@ -133,3 +133,76 @@ h1, h2, h3, h4, h5, h6 {
   background-color: rgba(255, 255, 255, 0.05) !important;
   cursor: pointer;
 }
+
+/* POPRAVKA ZA BELU TABELU U KARTICAMA */
+.table {
+  --bs-table-bg: transparent !important;
+  color: #f8fafc !important;
+}
+
+.table > :not(caption) > * > * {
+  background-color: transparent !important;
+  color: #f8fafc !important;
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+/* UKLANJANJE STRELICA (SPINNERS) IZ POLJA ZA BROJEVE */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+
+input[type=number] {
+  -moz-appearance: textfield; /* Za Firefox */
+}
+
+/* STILIZACIJA POLJA ZA IME TRENINGA */
+.workout-title-input {
+  background: transparent !important;
+  border: none !important;
+  color: #f8fafc !important;
+  font-weight: bold;
+  font-size: 2rem;
+  padding: 0;
+  box-shadow: none !important;
+  width: 100%;
+}
+
+.workout-title-input:focus {
+  border-bottom: 1px solid #38bdf8 !important;
+  outline: none;
+}
+
+/* STILIZACIJA MODALA I FORMI ZA DODOVANJE VEŽBE */
+.glass-modal .modal-content {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.glass-modal .modal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 0.25rem rgba(56, 189, 248, 0.25) !important;
+}
+
+/* STILIZACIJA PLACEHOLDER TEKSTA U FORMAMA */
+.glass-input::placeholder {
+  color: #e8e5e1 !important;
+  font-style: italic;        
+  font-size: 0.9rem;         
+  font-weight: 300;          
+  opacity: 0.6;              
+}

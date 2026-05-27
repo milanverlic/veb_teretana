@@ -1,18 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Card, Form, Button, Table, Modal, ListGroup } from 'react-bootstrap';
 import { FaCheck, FaPlus } from 'react-icons/fa';
-import exercisesData from '../exercises'; // Importujemo našu lažnu bazu vežbi
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import exercisesData from '../exercises';
 
 const ActiveWorkoutScreen = () => {
+  const navigate = useNavigate();
+  
+  // 1. Logika za štopericu
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval); // Gasi sat kada izađemo sa stranice
+  }, []);
+
+  // Formatiranje vremena (MM:SS ili HH:MM:SS)
+  const formatTime = (totalSeconds) => {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // 2. Stanje treninga (Sada je ime samo "Trening")
   const [workout, setWorkout] = useState({
-    name: 'Večernji Trening',
-    duration: '0:00',
+    name: 'Trening',
     exercises: [
       {
         id: 1,
-        name: 'Čučanj',
+        name: 'Čučanj (Barbell)',
         sets: [
           { setNumber: 1, previous: '20 kg x 8', kg: '', reps: '', isCompleted: false },
         ]
@@ -20,9 +41,11 @@ const ActiveWorkoutScreen = () => {
     ]
   });
 
-  const navigate = useNavigate();
-  // Stanje za kontrolu da li je Modal (prozor za biranje vežbi) otvoren
   const [showModal, setShowModal] = useState(false);
+
+  const handleNameChange = (e) => {
+    setWorkout({ ...workout, name: e.target.value });
+  };
 
   const handleSetChange = (exerciseId, setIndex, field, value) => {
     const updatedExercises = workout.exercises.map(ex => {
@@ -62,37 +85,39 @@ const ActiveWorkoutScreen = () => {
     setWorkout({ ...workout, exercises: updatedExercises });
   };
 
-  // Funkcija koja dodaje novu vežbu iz baze u trenutni trening
   const addNewExerciseToWorkout = (exerciseTemplate) => {
     const newExercise = {
-      id: Date.now(), // Koristimo trenutno vreme kao privremeni jedinstveni ID
+      id: Date.now(),
       name: exerciseTemplate.name,
       sets: [
         { setNumber: 1, previous: '-', kg: '', reps: '', isCompleted: false }
       ]
     };
-    
     setWorkout({ ...workout, exercises: [...workout.exercises, newExercise] });
-    setShowModal(false); // Zatvaramo Modal nakon odabira
+    setShowModal(false);
   };
 
- const finishWorkout = () => {
-  // Ovde će kasnije ići prava Redux akcija za slanje na backend
-  console.log('Trening završen, spremno za slanje na backend:', workout);
-  
-  // Prikazuje lepu zelenu poruku u uglu ekrana
-  toast.success('Trening je uspešno završen i sačuvan!'); 
-  
-  // Automatski te vraća nazad na početnu stranu
-  navigate('/'); 
-};
+  const finishWorkout = () => {
+    console.log('Trening završen, spremno za backend:', { ...workout, duration: formatTime(secondsElapsed) });
+    toast.success('Trening je uspešno završen i sačuvan!');
+    navigate('/');
+  };
 
   return (
     <Container className="py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 className="mb-0 fw-bold">{workout.name}</h2>
-          <small className="text-muted">Vreme: {workout.duration}</small>
+        <div className="flex-grow-1 me-3">
+          {/* Polje za izmenu imena treninga */}
+          <Form.Control 
+            type="text" 
+            value={workout.name} 
+            onChange={handleNameChange}
+            className="workout-title-input"
+            placeholder="Unesi ime treninga..."
+          />
+          <small className="text-muted d-block mt-1">
+            Vreme: <span className="text-primary fw-bold">{formatTime(secondsElapsed)}</span>
+          </small>
         </div>
         <Button variant="success" onClick={finishWorkout}>Završi</Button>
       </div>
@@ -103,11 +128,11 @@ const ActiveWorkoutScreen = () => {
             <h5 className="text-primary mb-3 fw-bold">{exercise.name}</h5>
             <Table responsive borderless className="align-middle mb-0">
               <thead>
-                <tr className="text-muted small">
+                <tr className="text-muted small border-bottom border-secondary">
                   <th>Set</th>
                   <th>Prethodno</th>
-                  <th>kg</th>
-                  <th>Reps</th>
+                  <th className="text-center">kg</th>
+                  <th className="text-center">Reps</th>
                   <th></th>
                 </tr>
               </thead>
@@ -124,6 +149,7 @@ const ActiveWorkoutScreen = () => {
                         value={set.kg} 
                         onChange={(e) => handleSetChange(exercise.id, index, 'kg', e.target.value)}
                         disabled={set.isCompleted}
+                        placeholder="0"
                       />
                     </td>
                     <td>
@@ -134,6 +160,7 @@ const ActiveWorkoutScreen = () => {
                         value={set.reps} 
                         onChange={(e) => handleSetChange(exercise.id, index, 'reps', e.target.value)}
                         disabled={set.isCompleted}
+                        placeholder="0"
                       />
                     </td>
                     <td className="text-end">
@@ -159,18 +186,16 @@ const ActiveWorkoutScreen = () => {
       ))}
 
       <div className="d-grid gap-2 mb-3">
-         {/* Klik na ovo dugme sada otvara Modal */}
          <Button variant="primary" size="lg" onClick={() => setShowModal(true)}>
            Dodaj Vežbu
          </Button>
       </div>
       <div className="d-grid gap-2">
          <Button variant="danger" size="lg" className="opacity-75" onClick={() => navigate('/')}>
-  Otkaži Trening
-</Button>
+           Otkaži Trening
+         </Button>
       </div>
 
-      {/* Modal komponenta za odabir vežbe */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
         <Modal.Header closeButton>
           <Modal.Title>Izaberi vežbu iz baze</Modal.Title>
@@ -191,7 +216,6 @@ const ActiveWorkoutScreen = () => {
           </ListGroup>
         </Modal.Body>
       </Modal>
-
     </Container>
   );
 };

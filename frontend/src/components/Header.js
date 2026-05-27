@@ -20,7 +20,7 @@ const Header = () => {
               {/* Dodajemo novu stavku: Baza Vežbi */}
               <LinkContainer to="/exercises">
                 <Nav.Link className="me-3">
-                  <FaBook className="me-1" /> Baza Vežbi
+                  <FaBook className="me-1" /> Vežbe
                 </Nav.Link>
               </LinkContainer>
               <LinkContainer to="/history">
