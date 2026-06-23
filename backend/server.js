@@ -1,22 +1,25 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const connectDB = require('./config/db'); // 1. Uvozimo db.js fajl
 
-// Učitavanje eksternih podešavanja iz .env fajla
+// Učitavanje varijabli iz .env fajla
 dotenv.config();
+
+// 2. Pokrećemo povezivanje sa MongoDB bazom
+connectDB();
 
 const app = express();
 
-// Middleware (Posrednici)
-app.use(cors()); // Omogućava React-u sa porta 3000 da šalje zahteve ovom serveru
-app.use(express.json()); // Omogućava serveru da čita podatke u JSON formatu
+// Middleware
+app.use(cors()); 
+app.use(express.json()); 
 
-// Osnovna test ruta
+// Test ruta
 app.get('/api', (req, res) => {
   res.send('FitFlow serverski sloj radi uspešno!');
 });
 
-// Port na kome će server slušati (5000)
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
