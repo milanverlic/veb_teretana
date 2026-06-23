@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Button, Modal, ListGroup, Table, Form } from 'react-bootstrap';
 import { FaPlus, FaCheck, FaTrash } from 'react-icons/fa';
-import axios from 'axios'; // Čist standardni uvoz
-import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const ActiveWorkoutScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const userInfo = localStorage.getItem('userInfo') ? JSON.parse(localStorage.getItem('userInfo')) : null;
 
-  // Preusmeri ako nije ulogovan
   useEffect(() => {
     if (!userInfo) {
       navigate('/login');
@@ -20,6 +20,7 @@ const ActiveWorkoutScreen = () => {
   const [showSelectModal, setShowSelectModal] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
+  // Učitavanje vežbi iz baze
   useEffect(() => {
     const fetchDbExercises = async () => {
       try {
@@ -34,6 +35,25 @@ const ActiveWorkoutScreen = () => {
     fetchDbExercises();
   }, []);
 
+  // PROVERAVAMO DA LI JE STIGAO ŠABLON IZ ZAJEDNICE
+  useEffect(() => {
+    if (location.state && location.state.templateExercises) {
+      const template = location.state.templateExercises.map((ex) => ({
+        _id: ex.exerciseId || `custom_${Date.now()}_${Math.random()}`, // Generiše ID ako je kastom vežba
+        name: ex.name,
+        category: ex.category,
+        previousSets: [],
+        sets: ex.sets.map((s, idx) => ({
+          setNum: idx + 1,
+          weight: s.weight,
+          reps: s.reps,
+          done: false
+        }))
+      }));
+      setActiveExercises(template);
+    }
+  }, [location.state]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setSeconds((prev) => prev + 1);
@@ -47,7 +67,6 @@ const ActiveWorkoutScreen = () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // DODAVANJE VEŽBE SA SERIJA-PO-SERIJA PRETHODNIM STANJEM
   const handleSelectExercise = async (exercise) => {
     if (activeExercises.some(e => e._id === exercise._id)) {
       setShowSelectModal(false);
@@ -55,13 +74,12 @@ const ActiveWorkoutScreen = () => {
     }
 
     let previousSetsArray = [];
-
-    if (userInfo) {
+    if (userInfo && !exercise._id.toString().startsWith('custom_')) {
       try {
         const userId = userInfo.id || userInfo._id;
         const { data } = await axios.get(`http://localhost:5000/api/workouts/previous/${userId}/${exercise._id}`);
         if (data.success && data.data) {
-          previousSetsArray = data.data; // Pamti ceo niz prošlih serija
+          previousSetsArray = data.data;
         }
       } catch (err) {
         console.error(err);
@@ -116,7 +134,6 @@ const ActiveWorkoutScreen = () => {
     }));
   };
 
-  // FINISH WORKOUT - UPIS U MONGODB
   const handleFinishWorkout = async () => {
     if (activeExercises.length === 0) {
       alert('Morate dodati bar jednu vežbu.');
@@ -124,7 +141,8 @@ const ActiveWorkoutScreen = () => {
     }
 
     const formattedExercises = activeExercises.map(ex => ({
-      exercise: ex._id,
+      exercise: ex._id.toString().startsWith('custom_') ? null : ex._id, // Sprečava pad baze za tuđe kastom vežbe
+      name: ex.name,
       sets: ex.sets.map(s => ({
         weight: Number(s.weight) || 0,
         reps: Number(s.reps) || 0
@@ -162,17 +180,12 @@ const ActiveWorkoutScreen = () => {
 
       {activeExercises.length === 0 ? (
         <div className="text-center p-5 rounded border border-secondary my-4" style={{ backgroundColor: 'rgba(30, 41, 59, 0.4)' }}>
-          <p className="text-white-50 fs-5 mb-0">Dodaj vežbe da započneš praćenje serija.</p>
+          <p className="text-white-50 fs-5 mb-0">Dodaj vežbe ili učitaj šablon.</p>
         </div>
       ) : (
         activeExercises.map((ex) => (
           <div key={ex._id} className="p-4 rounded border border-secondary mb-4 shadow position-relative" style={{ backgroundColor: 'rgba(30, 41, 59, 0.7)' }}>
-            <Button 
-              variant="link" 
-              className="text-danger position-absolute" 
-              style={{ top: '15px', right: '15px' }}
-              onClick={() => removeExercise(ex._id)}
-            >
+            <Button variant="link" className="text-danger position-absolute" style={{ top: '15px', right: '15px' }} onClick={() => removeExercise(ex._id)}>
               <FaTrash />
             </Button>
 
@@ -200,7 +213,6 @@ const ActiveWorkoutScreen = () => {
                       <td>
                         <Form.Control 
                           type="number" 
-                          placeholder="0"
                           value={set.weight}
                           disabled={set.done}
                           onChange={(e) => handleSetChange(ex._id, idx, 'weight', e.target.value)}
@@ -211,7 +223,6 @@ const ActiveWorkoutScreen = () => {
                       <td>
                         <Form.Control 
                           type="number" 
-                          placeholder="0"
                           value={set.reps}
                           disabled={set.done}
                           onChange={(e) => handleSetChange(ex._id, idx, 'reps', e.target.value)}
@@ -220,11 +231,7 @@ const ActiveWorkoutScreen = () => {
                         />
                       </td>
                       <td>
-                        <Button 
-                          variant={set.done ? "success" : "outline-secondary"}
-                          size="sm"
-                          onClick={() => toggleSetDone(ex._id, idx)}
-                        >
+                        <Button variant={set.done ? "success" : "outline-secondary"} size="sm" onClick={() => toggleSetDone(ex._id, idx)}>
                           <FaCheck />
                         </Button>
                       </td>
@@ -253,12 +260,7 @@ const ActiveWorkoutScreen = () => {
         <Modal.Body className="bg-dark p-0">
           <ListGroup variant="flush">
             {allDbExercises.map((exercise) => (
-              <ListGroup.Item 
-                key={exercise._id}
-                onClick={() => handleSelectExercise(exercise)}
-                action
-                className="bg-dark text-light border-bottom border-secondary d-flex justify-content-between align-items-center py-3"
-              >
+              <ListGroup.Item key={exercise._id} onClick={() => handleSelectExercise(exercise)} action className="bg-dark text-light border-bottom border-secondary d-flex justify-content-between align-items-center py-3">
                 <span className="fw-bold text-white">{exercise.name}</span>
                 <span className="badge bg-secondary">{exercise.category}</span>
               </ListGroup.Item>
