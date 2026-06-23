@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
-const workoutRoutes = require('./routes/workoutRoutes'); // 1. Uvozimo rute
+const workoutRoutes = require('./routes/workoutRoutes');
+const authRoutes = require('./routes/authRoutes'); // 1. Uvozimo auth rute
 
 dotenv.config();
 
@@ -18,8 +19,9 @@ app.get('/api', (req, res) => {
   res.send('FitFlow serverski sloj radi uspešno!');
 });
 
-// 2. Vezujemo rute za specifičan URL endpoint
+// Rute aplikacije
 app.use('/api/workouts', workoutRoutes);
+app.use('/api/auth', authRoutes); // 2. Vezujemo za /api/auth URL
 
 const PORT = process.env.PORT || 5000;
 
