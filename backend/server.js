@@ -1,17 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const connectDB = require('./config/db'); // 1. Uvozimo db.js fajl
+const connectDB = require('./config/db');
+const workoutRoutes = require('./routes/workoutRoutes'); // 1. Uvozimo rute
 
-// Učitavanje varijabli iz .env fajla
 dotenv.config();
 
-// 2. Pokrećemo povezivanje sa MongoDB bazom
 connectDB();
 
 const app = express();
 
-// Middleware
 app.use(cors()); 
 app.use(express.json()); 
 
@@ -19,6 +17,9 @@ app.use(express.json());
 app.get('/api', (req, res) => {
   res.send('FitFlow serverski sloj radi uspešno!');
 });
+
+// 2. Vezujemo rute za specifičan URL endpoint
+app.use('/api/workouts', workoutRoutes);
 
 const PORT = process.env.PORT || 5000;
 
