@@ -22,6 +22,7 @@ app.get('/api', (req, res) => {
 // Rute aplikacije
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/auth', authRoutes); // 2. Vezujemo za /api/auth URL
+app.use('/api/exercises', require('./routes/exerciseRoutes'));
 
 const PORT = process.env.PORT || 5000;
 
