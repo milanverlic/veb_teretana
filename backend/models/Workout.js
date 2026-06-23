@@ -1,34 +1,40 @@
 const mongoose = require('mongoose');
 
-const WorkoutSchema = new mongoose.Schema({
+const workoutSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Povezujemo trening sa konkretnim korisnikom iz baze
+    ref: 'User',
     required: true
   },
   title: {
     type: String,
-    required: [true, 'Molimo vas unesite naziv treninga'], // npr. "Push Day", "Legs"
-    trim: true
+    default: 'Trening Snage' // Rešava grešku "Molimo vas unesite naziv treninga"
+  },
+  duration: {
+    type: String,
+    required: true
   },
   exercises: [
     {
+      exercise: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Exercise',
+        required: true
+      },
       name: {
         type: String,
-        required: [true, 'Molimo vas unesite naziv vežbe'] // npr. "Squat", "Bench Press"
+        default: 'Vežba' // Rešava grešku "Molimo vas unesite naziv vežbe" za starije strukture
       },
       sets: [
         {
-          reps: { type: Number, required: true }, // Broj ponavljanja
-          weight: { type: Number, required: true } // Težina u kg (za progresivni overload)
+          weight: { type: Number, required: true },
+          reps: { type: Number, required: true }
         }
       ]
     }
-  ],
-  date: {
-    type: Date,
-    default: Date.now
-  }
+  ]
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model('Workout', WorkoutSchema);
+module.exports = mongoose.model('Workout', workoutSchema);
