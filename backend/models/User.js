@@ -5,6 +5,11 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Molimo vas dodajte ime']
   },
+  username: {
+    type: String,
+    required: true,
+    unique: true // Sprečava da dva korisnika imaju isti username
+  },
   email: {
     type: String,
     required: [true, 'Molimo vas dodajte email'],
@@ -31,3 +36,4 @@ const UserSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('User', UserSchema);
+
