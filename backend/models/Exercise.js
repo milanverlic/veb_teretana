@@ -9,7 +9,7 @@ const exerciseSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['Grudi', 'Leđa', 'Noge', 'Ramena', 'Ruke', 'Trbušnjaci', 'Kardio'] // Kategorije vežbi
+    enum: ['Grudi', 'Leđa', 'Noge', 'Ramena', 'Ruke', 'Trbušnjaci', 'Kardio']
   },
   description: {
     type: String,
@@ -17,7 +17,13 @@ const exerciseSchema = new mongoose.Schema({
   },
   imageUrl: {
     type: String,
-    required: true // Ovde će ići URL linkovi do slika/GIF-ova
+    required: true
+  },
+  // NOVO: Ako je null, u pitanju je sistemska vežba. Ako ima ID, kreirao ju je korisnik.
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   }
 }, {
   timestamps: true

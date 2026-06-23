@@ -1,8 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { getExercises } = require('../controllers/exerciseController');
+const { 
+  getExercises, 
+  getExerciseById, 
+  createExercise, 
+  deleteExercise 
+} = require('../controllers/exerciseController');
 
-// Kada neko gađa /api/exercises, pokreni funkciju iz kontrolera
+// Standardno mapiranje ruta - čisto i bez greške
 router.get('/', getExercises);
+router.post('/', createExercise);
+router.get('/:id', getExerciseById);
+router.delete('/:id', deleteExercise);
 
 module.exports = router;

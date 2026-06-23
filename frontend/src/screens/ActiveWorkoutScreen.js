@@ -1,173 +1,213 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Card, Form, Button, Table, Modal, ListGroup } from 'react-bootstrap';
-import { FaCheck, FaPlus } from 'react-icons/fa';
+import { Container, Row, Col, Button, Modal, ListGroup, Table, Form } from 'react-bootstrap';
+import { FaPlus, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import exercisesData from '../exercises';
 
 const ActiveWorkoutScreen = () => {
   const navigate = useNavigate();
   
-  // 1. Logika za štopericu
-  const [secondsElapsed, setSecondsElapsed] = useState(0);
+  // Podaci o korisniku
+  const userInfo = localStorage.getItem('userInfo') ? JSON.parse(localStorage.getItem('userInfo')) : null;
 
+  // Stanja za trening
+  const [activeExercises, setActiveExercises] = useState([]); // Počinje PRAZNO!
+  const [allDbExercises, setAllDbExercises] = useState([]); // Sve vežbe iz baze za izbor
+  const [showSelectModal, setShowSelectModal] = useState(false);
+  
+  // Timer stanje
+  const [seconds, setSeconds] = useState(0);
+
+  // 1. Učitaj sve vežbe iz baze za Modal na klik "Dodaj Vežbu"
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSecondsElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval); // Gasi sat kada izađemo sa stranice
+    const fetchDbExercises = async () => {
+      try {
+        const { data } = await axios.get('http://localhost:5000/api/exercises');
+        if (data.success) {
+          setAllDbExercises(data.data);
+        }
+      } catch (err) {
+        console.error('Greška pri učitavanju vežbi za trening', err);
+      }
+    };
+    fetchDbExercises();
   }, []);
 
-  // Formatiranje vremena (MM:SS ili HH:MM:SS)
+  // 2. Timer štoperica
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const formatTime = (totalSeconds) => {
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // 2. Stanje treninga (Sada je ime samo "Trening")
-  const [workout, setWorkout] = useState({
-    name: 'Trening',
-    exercises: [
-      {
-        id: 1,
-        name: 'Čučanj (Barbell)',
-        sets: [
-          { setNumber: 1, previous: '20 kg x 8', kg: '', reps: '', isCompleted: false },
-        ]
+  // 3. Dodavanje nove vežbe iz modala u trenutni trening
+  const handleSelectExercise = async (exercise) => {
+    // Provera da li je vežba već dodata
+    if (activeExercises.some(e => e._id === exercise._id)) {
+      setShowSelectModal(false);
+      return;
+    }
+
+    let previousSetsText = 'Nema podataka';
+
+    // Ako imamo ulogovanog korisnika, vučemo njegovu istoriju za OVOJ vežbu
+    if (userInfo) {
+      try {
+        const { data } = await axios.get(`http://localhost:5000/api/workouts/previous/${userInfo.id}/${exercise._id}`);
+        if (data.success && data.data && data.data.length > 0) {
+          // Uzimamo prvu (ili najjaču) seriju iz prethodnog puta kao referencu
+          previousSetsText = `${data.data[0].weight} kg x ${data.data[0].reps}`;
+        }
+      } catch (err) {
+        console.error('Greška pri preuzimanju istorije serija', err);
       }
-    ]
-  });
+    }
 
-  const [showModal, setShowModal] = useState(false);
+    const newWorkoutExercise = {
+      ...exercise,
+      previousInfo: previousSetsText, // Čuvamo "Prethodno" dinamički!
+      sets: [{ setNum: 1, weight: '', reps: '', done: false }]
+    };
 
-  const handleNameChange = (e) => {
-    setWorkout({ ...workout, name: e.target.value });
+    setActiveExercises([...activeExercises, newWorkoutExercise]);
+    setShowSelectModal(false);
   };
 
-  const handleSetChange = (exerciseId, setIndex, field, value) => {
-    const updatedExercises = workout.exercises.map(ex => {
-      if (ex.id === exerciseId) {
-        const updatedSets = [...ex.sets];
-        updatedSets[setIndex][field] = value;
-        return { ...ex, sets: updatedSets };
-      }
-      return ex;
-    });
-    setWorkout({ ...workout, exercises: updatedExercises });
-  };
-
-  const toggleSetCompletion = (exerciseId, setIndex) => {
-    const updatedExercises = workout.exercises.map(ex => {
-      if (ex.id === exerciseId) {
-        const updatedSets = [...ex.sets];
-        updatedSets[setIndex].isCompleted = !updatedSets[setIndex].isCompleted;
-        return { ...ex, sets: updatedSets };
-      }
-      return ex;
-    });
-    setWorkout({ ...workout, exercises: updatedExercises });
-  };
-
+  // 4. Upravljanje serijama (Dodaj seriju, izmena polja)
   const addSet = (exerciseId) => {
-    const updatedExercises = workout.exercises.map(ex => {
-      if (ex.id === exerciseId) {
-        const newSetNumber = ex.sets.length + 1;
+    setActiveExercises(activeExercises.map(ex => {
+      if (ex._id === exerciseId) {
         return {
           ...ex,
-          sets: [...ex.sets, { setNumber: newSetNumber, previous: '-', kg: '', reps: '', isCompleted: false }]
+          sets: [...ex.sets, { setNum: ex.sets.length + 1, weight: '', reps: '', done: false }]
         };
       }
       return ex;
-    });
-    setWorkout({ ...workout, exercises: updatedExercises });
+    }));
   };
 
-  const addNewExerciseToWorkout = (exerciseTemplate) => {
-    const newExercise = {
-      id: Date.now(),
-      name: exerciseTemplate.name,
-      sets: [
-        { setNumber: 1, previous: '-', kg: '', reps: '', isCompleted: false }
-      ]
+  const handleSetChange = (exerciseId, index, field, value) => {
+    setActiveExercises(activeExercises.map(ex => {
+      if (ex._id === exerciseId) {
+        const updatedSets = [...ex.sets];
+        updatedSets[index][field] = value;
+        return { ...ex, sets: updatedSets };
+      }
+      return ex;
+    }));
+  };
+
+  const toggleSetDone = (exerciseId, index) => {
+    setActiveExercises(activeExercises.map(ex => {
+      if (ex._id === exerciseId) {
+        const updatedSets = [...ex.sets];
+        updatedSets[index].done = !updatedSets[index].done;
+        return { ...ex, sets: updatedSets };
+      }
+      return ex;
+    }));
+  };
+
+  // 5. Čuvanje kompletnog treninga u bazu podataka
+  const handleFinishWorkout = async () => {
+    if (activeExercises.length === 0) {
+      alert('Nemate dodatih vežbi na ovom treningu.');
+      return;
+    }
+
+    const workoutData = {
+      user: userInfo ? userInfo.id : null,
+      duration: formatTime(seconds),
+      exercises: activeExercises.map(ex => ({
+        exercise: ex._id,
+        sets: ex.sets.map(s => ({
+          weight: Number(s.weight) || 0,
+          reps: Number(s.reps) || 0
+        }))
+      }))
     };
-    setWorkout({ ...workout, exercises: [...workout.exercises, newExercise] });
-    setShowModal(false);
-  };
 
-  const finishWorkout = () => {
-    console.log('Trening završen, spremno za backend:', { ...workout, duration: formatTime(secondsElapsed) });
-    toast.success('Trening je uspešno završen i sačuvan!');
-    navigate('/');
+    try {
+      await axios.post('http://localhost:5000/api/workouts', workoutData);
+      alert('Trening uspešno završen i sačuvan u istoriju! 💪');
+      navigate('/history');
+    } catch (err) {
+      alert('Greška prilikom čuvanja treninga.');
+    }
   };
 
   return (
-    <Container className="py-4">
+    <Container className="py-4 text-light">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <div className="flex-grow-1 me-3">
-          {/* Polje za izmenu imena treninga */}
-          <Form.Control 
-            type="text" 
-            value={workout.name} 
-            onChange={handleNameChange}
-            className="workout-title-input"
-            placeholder="Unesi ime treninga..."
-          />
-          <small className="text-muted d-block mt-1">
-            Vreme: <span className="text-primary fw-bold">{formatTime(secondsElapsed)}</span>
-          </small>
+        <div>
+          <h1 className="fw-bold mb-0 text-white">Trening</h1>
+          <p className="text-muted">Vreme: <span className="text-info fw-bold">{formatTime(seconds)}</span></p>
         </div>
-        <Button variant="success" onClick={finishWorkout}>Završi</Button>
+        <Button variant="success" size="lg" className="fw-bold px-4" onClick={handleFinishWorkout}>
+          Završi
+        </Button>
       </div>
 
-      {workout.exercises.map((exercise) => (
-        <Card key={exercise.id} className="mb-4 shadow-sm border-0">
-          <Card.Body>
-            <h5 className="text-primary mb-3 fw-bold">{exercise.name}</h5>
-            <Table responsive borderless className="align-middle mb-0">
+      {/* Ako nema vežbi, ispiši poruku */}
+      {activeExercises.length === 0 ? (
+        <div className="text-center p-5 rounded border border-secondary my-4" style={{ backgroundColor: 'rgba(30, 41, 59, 0.4)' }}>
+          <p className="text-white-50 fs-5 mb-0">Trening je prazan. Klikni na dugme ispod da dodaš prvu vežbu iz baze podataka!</p>
+        </div>
+      ) : (
+        activeExercises.map((ex) => (
+          <div key={ex._id} className="p-4 rounded border border-secondary mb-4 shadow" style={{ backgroundColor: 'rgba(30, 41, 59, 0.7)', backdropFilter: 'blur(10px)' }}>
+            <h4 className="text-primary fw-bold mb-3">{ex.name} <span className="text-muted small">({ex.category})</span></h4>
+            
+            <Table responsive borderless className="text-light text-center align-middle">
               <thead>
-                <tr className="text-muted small border-bottom border-secondary">
-                  <th>Set</th>
-                  <th>Prethodno</th>
-                  <th className="text-center">kg</th>
-                  <th className="text-center">Reps</th>
-                  <th></th>
+                <tr className="border-bottom border-secondary text-muted small">
+                  <th style={{ width: '10%' }}>Set</th>
+                  <th style={{ width: '25%' }}>Prethodno</th>
+                  <th style={{ width: '25%' }}>kg</th>
+                  <th style={{ width: '25%' }}>Reps</th>
+                  <th style={{ width: '15%' }}><FaCheck /></th>
                 </tr>
               </thead>
               <tbody>
-                {exercise.sets.map((set, index) => (
-                  <tr key={index} className={set.isCompleted ? 'opacity-50' : ''}>
-                    <td className="fw-bold">{set.setNumber}</td>
-                    <td className="text-muted small">{set.previous}</td>
+                {ex.sets.map((set, idx) => (
+                  <tr key={idx} className={set.done ? "opacity-50" : ""}>
+                    <td className="fw-bold text-white fs-5">{set.setNum}</td>
+                    <td className="text-white-50">{idx === 0 ? ex.previousInfo : "—"}</td>
                     <td>
                       <Form.Control 
                         type="number" 
-                        size="sm" 
-                        className="text-center" 
-                        value={set.kg} 
-                        onChange={(e) => handleSetChange(exercise.id, index, 'kg', e.target.value)}
-                        disabled={set.isCompleted}
                         placeholder="0"
+                        value={set.weight}
+                        disabled={set.done}
+                        onChange={(e) => handleSetChange(ex._id, idx, 'weight', e.target.value)}
+                        className="bg-secondary text-white border-0 text-center mx-auto"
+                        style={{ maxWidth: '90px', borderRadius: '6px' }}
                       />
                     </td>
                     <td>
                       <Form.Control 
                         type="number" 
-                        size="sm" 
-                        className="text-center" 
-                        value={set.reps} 
-                        onChange={(e) => handleSetChange(exercise.id, index, 'reps', e.target.value)}
-                        disabled={set.isCompleted}
                         placeholder="0"
+                        value={set.reps}
+                        disabled={set.done}
+                        onChange={(e) => handleSetChange(ex._id, idx, 'reps', e.target.value)}
+                        className="bg-secondary text-white border-0 text-center mx-auto"
+                        style={{ maxWidth: '90px', borderRadius: '6px' }}
                       />
                     </td>
-                    <td className="text-end">
+                    <td>
                       <Button 
-                        variant={set.isCompleted ? 'success' : 'outline-secondary'} 
-                        size="sm" 
-                        onClick={() => toggleSetCompletion(exercise.id, index)}
+                        variant={set.done ? "success" : "outline-secondary"}
+                        size="sm"
+                        onClick={() => toggleSetDone(ex._id, idx)}
+                        style={{ borderRadius: '6px' }}
                       >
                         <FaCheck />
                       </Button>
@@ -176,46 +216,45 @@ const ActiveWorkoutScreen = () => {
                 ))}
               </tbody>
             </Table>
-            <div className="d-grid gap-2 mt-3">
-              <Button variant="outline-primary" size="sm" onClick={() => addSet(exercise.id)}>
-                <FaPlus className="me-1" /> Dodaj Seriju
-              </Button>
-            </div>
-          </Card.Body>
-        </Card>
-      ))}
+            <Button variant="outline-primary" size="sm" className="w-100 fw-bold mt-2 py-2" onClick={() => addSet(ex._id)}>
+              <FaPlus className="me-1" /> Dodaj Seriju
+            </Button>
+          </div>
+        ))
+      )}
 
-      <div className="d-grid gap-2 mb-3">
-         <Button variant="primary" size="lg" onClick={() => setShowModal(true)}>
-           Dodaj Vežbu
-         </Button>
-      </div>
-      <div className="d-grid gap-2">
-         <Button variant="danger" size="lg" className="opacity-75" onClick={() => navigate('/')}>
-           Otkaži Trening
-         </Button>
+      {/* Glavne akcije na dnu */}
+      <div className="d-grid gap-3 mt-4">
+        <Button variant="primary" size="lg" className="fw-bold py-3" onClick={() => setShowSelectModal(true)}>
+          Dodaj Vežbu
+        </Button>
+        <Button variant="danger" size="lg" className="fw-bold py-2 opacity-75" onClick={() => navigate('/')}>
+          Otkaži Trenig
+        </Button>
       </div>
 
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Izaberi vežbu iz baze</Modal.Title>
+      {/* DINO MODAL: Izbor vežbe direktno iz MongoDB Atlasa */}
+      <Modal show={showSelectModal} onHide={() => setShowSelectModal(false)} centered scrollable size="md" className="glass-modal">
+        <Modal.Header closeButton className="border-secondary text-light">
+          <Modal.Title className="fw-bold">Izaberi vežbu iz baze</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body className="bg-dark p-0">
           <ListGroup variant="flush">
-            {exercisesData.map((ex) => (
+            {allDbExercises.map((exercise) => (
               <ListGroup.Item 
-                key={ex._id} 
-                action 
-                onClick={() => addNewExerciseToWorkout(ex)}
-                className="d-flex justify-content-between align-items-center"
+                key={exercise._id}
+                onClick={() => handleSelectExercise(exercise)}
+                action
+                className="bg-dark text-light border-bottom border-secondary d-flex justify-content-between align-items-center py-3 px-4"
               >
-                <strong>{ex.name}</strong>
-                <span className="badge bg-secondary">{ex.category}</span>
+                <span className="fw-bold text-white">{exercise.name}</span>
+                <span className="badge bg-secondary text-white-50" style={{ backgroundColor: '#475569' }}>{exercise.category}</span>
               </ListGroup.Item>
             ))}
           </ListGroup>
         </Modal.Body>
       </Modal>
+
     </Container>
   );
 };
