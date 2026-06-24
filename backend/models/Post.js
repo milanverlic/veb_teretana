@@ -10,22 +10,17 @@ const postSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  // Šablon treninga koji se deli u zajednici
+  workout: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Workout'
+  },
   workoutTemplate: {
-    duration: String,
-    exercises: [
-      {
-        exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' },
-        name: String,      // Pamti ime ako vežba ne postoji kod drugog korisnika
-        category: String,  // Pamti kategoriju
-        sets: [
-          {
-            weight: Number,
-            reps: Number
-          }
-        ]
-      }
-    ]
+    type: Object
+  },
+  // OVO POLJE MORA DA STOJI: Pamti ID-jeve korisnika koji su lajkovali objavu
+  likes: {
+    type: [String],
+    default: []
   }
 }, {
   timestamps: true

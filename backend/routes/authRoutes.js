@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { register, login } = require('../controllers/authController');
+const { createPost, getPosts, likePost } = require('../controllers/postController');
 
-router.post('/register', register);
-router.post('/login', login);
+// Standardne rute za povlačenje i kreiranje objava
+router.get('/', getPosts);
+router.post('/', createPost);
+
+// Ruta za lajkovanje objave preko ID-ja
+router.put('/:id/like', likePost);
 
 module.exports = router;

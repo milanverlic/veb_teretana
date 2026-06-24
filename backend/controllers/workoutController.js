@@ -1,97 +1,105 @@
 const Workout = require('../models/Workout');
-const Exercise = require('../models/Exercise');
+const mongoose = require('mongoose');
 
-// @desc    Sačuvaj završen trening (Samo odrađene serije)
+// @desc    Kreiraj novi trening i sačuvaj u bazu
 // @route   POST /api/workouts
 exports.createWorkout = async (req, res) => {
   try {
-    const { user, title, duration, exercises } = req.body;
+    const { userId, title, duration, exercises } = req.body;
 
-    if (!user) {
-      return res.status(401).json({ success: false, error: 'Morate biti ulogovani da biste sačuvali trening.' });
+    // 1. Izvlačenje čistog string ID-ja bez obzira da li je stigao objekat ili string
+    let rawUserId = userId;
+    if (userId && typeof userId === 'object') {
+      rawUserId = userId.id || userId._id;
     }
 
-    // Prolazimo kroz vežbe i filtriramo samo odrađene serije
-    const formattedExercises = [];
-
-    for (const ex of exercises) {
-      // Filtriramo samo serije koje imaju done: true
-      const doneSets = ex.sets
-        .filter(s => s.done === true)
-        .map(s => ({
-          weight: Number(s.weight) || 0,
-          reps: Number(s.reps) || 0
-        }));
-
-      // Ako vežba ima bar jednu odrađenu seriju, ubacujemo je u trening
-      if (doneSets.length > 0) {
-        try {
-          const foundEx = await Exercise.findById(ex.exercise);
-          formattedExercises.push({
-            exercise: ex.exercise || null,
-            name: foundEx ? foundEx.name : (ex.name || 'Kastom Vežba'),
-            sets: doneSets
-          });
-        } catch (err) {
-          formattedExercises.push({
-            exercise: ex.exercise || null,
-            name: ex.name || 'Kastom Vežba',
-            sets: doneSets
-          });
-        }
-      }
+    // 2. Provera validnosti ObjectId-ja
+    if (!rawUserId || rawUserId === 'null' || rawUserId === 'undefined' || !mongoose.Types.ObjectId.isValid(rawUserId.toString())) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Morate biti ulogovani sa validnim nalogom da biste sačuvali trening.' 
+      });
     }
 
-    if (formattedExercises.length === 0) {
-      return res.status(400).json({ success: false, error: 'Nemate nijednu odrađenu (otkačenu) seriju na treningu.' });
+    // Prebacujemo ga u čist Mongoose ObjectId da model ne bi pravio problem
+    const cleanUserId = new mongoose.Types.ObjectId(rawUserId.toString());
+
+    if (!exercises || exercises.length === 0) {
+      return res.status(400).json({ success: false, error: 'Trening mora sadržati barem jednu vežbu.' });
     }
 
-    const workout = await Workout.create({
-      user,
-      title: title || `Trening - ${duration}`,
-      duration,
-      exercises: formattedExercises
+    // 3. Kreiranje zapisa tačno po tvom modelu zalepljenom maločas
+    const newWorkout = await Workout.create({
+      user: cleanUserId,
+      title: title || 'Trening Snage',
+      duration: String(duration || '0'), // Osiguravamo da je string
+      exercises: exercises.map(ex => ({
+        exercise: new mongoose.Types.ObjectId(ex.exercise.toString()),
+        name: ex.name || 'Vežba',
+        sets: ex.sets.map(s => ({
+          weight: Number(s.weight),
+          reps: Number(s.reps)
+        }))
+      }))
     });
 
-    res.status(201).json({ success: true, data: workout });
+    console.log('✅ Trening uspešno upisan u MongoDB Atlas:', newWorkout._id);
+    return res.status(201).json({ success: true, data: newWorkout });
+
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error('❌ Greška pri kreiranju treninga na backendu:', error.message);
+    return res.status(400).json({ success: false, error: error.message });
   }
 };
 
-// @desc    Preuzmi sve treninge ulogovanog korisnika za Istoriju
+// @desc    Preuzmi sve treninge za određenog korisnika
+// @route   GET /api/workouts/user/:userId
 exports.getUserWorkouts = async (req, res) => {
   try {
-    const workouts = await Workout.find({ user: req.params.userId })
-      .populate('exercises.exercise')
+    let { userId } = req.params;
+
+    if (!userId || userId === 'null' || userId === 'undefined' || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const workouts = await Workout.find({ user: new mongoose.Types.ObjectId(userId) })
+      .populate('exercises.exercise') // Popunjavamo preko ispravnog polja 'exercise' iz tvog modela
       .sort({ createdAt: -1 });
 
-    res.status(200).json({ success: true, count: workouts.length, data: workouts });
+    return res.status(200).json({ success: true, data: workouts });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    return res.status(400).json({ success: false, error: error.message });
   }
 };
 
-// @desc    Preuzmi prethodne serije za specifičnu vežbu korisnika
+// @desc    Preuzmi poslednje serije/kilograme za specifičnu vežbu korisnika
+// @route   GET /api/workouts/previous/:userId/:exerciseId
 exports.getPreviousExerciseInfo = async (req, res) => {
   try {
     const { userId, exerciseId } = req.params;
 
+    if (!userId || userId === 'null' || exerciseId === 'null' || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(200).json({ success: true, data: null });
+    }
+
     const lastWorkout = await Workout.findOne({
-      user: userId,
-      'exercises.exercise': exerciseId
+      user: new mongoose.Types.ObjectId(userId),
+      'exercises.exercise': new mongoose.Types.ObjectId(exerciseId)
     }).sort({ createdAt: -1 });
 
     if (!lastWorkout) {
       return res.status(200).json({ success: true, data: null });
     }
 
-    const targetExercise = lastWorkout.exercises.find(
-      (e) => e.exercise && e.exercise.toString() === exerciseId
+    const specificExercise = lastWorkout.exercises.find(
+      ex => ex.exercise.toString() === exerciseId.toString()
     );
 
-    res.status(200).json({ success: true, data: targetExercise ? targetExercise.sets : null });
+    return res.status(200).json({
+      success: true,
+      data: specificExercise ? specificExercise.sets : null
+    });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    return res.status(400).json({ success: false, error: error.message });
   }
 };

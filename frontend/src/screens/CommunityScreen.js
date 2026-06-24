@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Card, Button, Form, Row, Col, Spinner, Modal, Table } from 'react-bootstrap';
-import { FaShareAlt, FaEye, FaDumbbell, FaClock, FaUser } from 'react-icons/fa';
+import { FaShareAlt, FaEye, FaDumbbell, FaClock, FaHeart, FaRegHeart } from 'react-icons/fa';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 const CommunityScreen = () => {
   const navigate = useNavigate();
   const userInfo = localStorage.getItem('userInfo') ? JSON.parse(localStorage.getItem('userInfo')) : null;
+  const currentUserId = userInfo ? (userInfo.id || userInfo._id) : null;
 
   const [posts, setPosts] = useState([]);
   const [myWorkouts, setMyWorkouts] = useState([]);
@@ -54,7 +55,7 @@ const CommunityScreen = () => {
     try {
       setPosting(true);
       const postData = {
-        userId: userInfo.id || userInfo._id,
+        userId: currentUserId,
         description,
         workoutId: selectedWorkout
       };
@@ -74,15 +75,53 @@ const CommunityScreen = () => {
     }
   };
 
+  // FUNKCIJA ZA HANDLOVANJE LAJKOVA
+  const handleLikePost = async (postId) => {
+    if (!currentUserId) {
+      alert('Morate biti ulogovani da biste lajkovali objave.');
+      return;
+    }
+
+    try {
+      const { data } = await axios.put(`http://localhost:5000/api/posts/${postId}/like`, { userId: currentUserId });
+      if (data.success) {
+        // Mapiramo kroz trenutne objave i menjamo samo onu koju smo lajkovali sa novim podacima sa servera
+        setPosts(posts.map(p => p._id === postId ? data.data : p));
+      }
+    } catch (err) {
+      console.error('Greška pri lajkovanju:', err);
+    }
+  };
+
   const openTemplateModal = (template) => {
     setActiveTemplate(template);
     setShowModal(true);
   };
 
   const handleUseTemplate = (template) => {
-    setShowModal(false);
-    // Šaljemo vežbe i serije pravo u ActiveWorkoutScreen
-    navigate('/workout', { state: { templateExercises: template.exercises } });
+    if (!template || !template.exercises) return;
+
+    if (window.confirm('Da li želiš da pokreneš ovaj trening iz zajednice? Sve serije će biti spremne i čiste za tvoj unos.')) {
+      setShowModal(false);
+
+      const templateExercises = template.exercises.map(ex => ({
+        exerciseId: ex.exercise?._id || ex.exerciseId || ex.exercise,
+        name: ex.exercise?.name || ex.name || 'Vežba',
+        category: ex.exercise?.category || ex.category || '-',
+        sets: ex.sets.map(() => ({
+          weight: '',
+          reps: '',
+          isCompleted: false
+        }))
+      }));
+
+      localStorage.setItem('fitflow_title', `Šablon: ${template.title || 'Trening iz zajednice'}`);
+      localStorage.setItem('fitflow_active_exercises', JSON.stringify(templateExercises));
+      localStorage.setItem('fitflow_seconds', '0');
+
+      navigate('/workout/active');
+      window.location.reload();
+    }
   };
 
   if (loading) {
@@ -101,7 +140,7 @@ const CommunityScreen = () => {
         <p className="text-muted">Podeli svoje uspehe i koristi treninge drugih korisnika</p>
       </div>
 
-      {/* FORMA ZA OBJAVU SOPSTVENOG TRENINGA (Vidljiva samo ulogovanima) */}
+      {/* FORMA ZA OBJAVU */}
       {userInfo && (
         <Card className="mb-5 border-secondary border" style={{ backgroundColor: 'rgba(30, 41, 59, 0.6)' }}>
           <Card.Body className="p-4">
@@ -121,7 +160,7 @@ const CommunityScreen = () => {
                     const date = new Date(w.createdAt).toLocaleDateString('sr-RS', { day: 'numeric', month: 'short' });
                     return (
                       <option key={w._id} value={w._id}>
-                        {date} ({w.duration}) - {w.exercises.length} vežbe
+                        {date} ({w.duration} min) - {w.exercises.length} vežbe
                       </option>
                     );
                   })}
@@ -155,43 +194,79 @@ const CommunityScreen = () => {
         {posts.length === 0 ? (
           <div className="text-center text-muted p-5">Još uvek nema objava u zajednici. Probaj ti prvi!</div>
         ) : (
-          posts.map((post) => (
-            <Col xs={12} className="mb-4" key={post._id}>
-              <Card className="border-0 text-light shadow-sm" style={{ backgroundColor: 'rgba(30, 41, 59, 0.8)' }}>
-                <Card.Body className="p-4">
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <div className="d-flex align-items-center gap-2">
-                      <div className="bg-primary rounded-circle p-2 text-white d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
-                        <FaUser size={18} />
-                      </div>
-                      <div>
-                        <h6 className="fw-bold mb-0 text-white">{post.user ? post.user.name : 'Atletski Korisnik'}</h6>
-                        <span className="text-muted small">
-                          {new Date(post.createdAt).toLocaleDateString('sr-RS', { day: 'numeric', month: 'long' })}
-                        </span>
-                      </div>
-                    </div>
-                    <Button 
-                      variant="outline-info" 
-                      size="sm" 
-                      className="fw-bold d-flex align-items-center gap-1"
-                      onClick={() => openTemplateModal(post.workoutTemplate)}
-                    >
-                      <FaEye /> Pogledaj šablon
-                    </Button>
-                  </div>
+          posts.map((post) => {
+            // Provera da li je trenutno ulogovani korisnik lajkovao ovu objavu
+            const isLikedByMe = post.likes && post.likes.includes(currentUserId);
+            const likesCount = post.likes ? post.likes.length : 0;
 
-                  <p className="fs-5 text-white-50 mb-0 ps-1" style={{ whiteSpace: 'pre-line' }}>
-                    {post.description}
-                  </p>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))
+            // IZMENA: Prikazujemo prvenstveno USERNAME, sa fallback opcijama
+            const displayUsername = post.user 
+              ? (post.user.username ? `@${post.user.username}` : post.user.name) 
+              : '@atletski_korisnik';
+
+            return (
+              <Col xs={12} className="mb-4" key={post._id}>
+                <Card className="border-0 text-light shadow-sm" style={{ backgroundColor: 'rgba(30, 41, 59, 0.8)' }}>
+                  <Card.Body className="p-4">
+                    <Row>
+                      {/* LEVA STRANA: Lajk dugme i brojač */}
+                      <Col xs={2} sm={1} className="d-flex flex-column align-items-center justify-content-start border-end border-secondary pe-3">
+                        <Button 
+                          variant="link" 
+                          className="p-0 text-decoration-none mb-1" 
+                          onClick={() => handleLikePost(post._id)}
+                          style={{ transition: 'transform 0.1s' }}
+                          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.85)'}
+                          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                          {isLikedByMe ? (
+                            <FaHeart size={26} className="text-danger" />
+                          ) : (
+                            <FaRegHeart size={26} className="text-muted" style={{ color: '#94a3b8' }} />
+                          )}
+                        </Button>
+                        <span className="fw-bold text-white small">{likesCount}</span>
+                      </Col>
+
+                      {/* DESNA STRANA: Sadržaj objave */}
+                      <Col xs={10} sm={11} className="ps-4">
+                        <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <div className="bg-primary rounded-circle text-white d-flex align-items-center justify-content-center" style={{ width: '38px', height: '38px' }}>
+                              <span className="fw-bold small text-uppercase">{displayUsername.replace('@', '').substring(0, 2)}</span>
+                            </div>
+                            <div>
+                              {/* PROMENJENO: Sada piše username sitnim slovima umesto imena */}
+                              <h6 className="fw-bold mb-0 text-white">{displayUsername}</h6>
+                              <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                                {new Date(post.createdAt).toLocaleDateString('sr-RS', { day: 'numeric', month: 'long' })}
+                              </span>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="outline-info" 
+                            size="sm" 
+                            className="fw-bold d-flex align-items-center gap-1"
+                            onClick={() => openTemplateModal(post.workoutTemplate || post.workout)}
+                          >
+                            <FaEye /> Pogledaj šablon
+                          </Button>
+                        </div>
+
+                        <p className="fs-5 text-white-50 mb-0" style={{ whiteSpace: 'pre-line' }}>
+                          {post.description}
+                        </p>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+              </Col>
+            );
+          })
         )}
       </Row>
 
-      {/* MODAL ZA "POGLEDAJ ŠABLON" */}
+      {/* MODAL ZA POGLEDAJ ŠABLON */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg" className="glass-modal">
         <Modal.Header closeButton className="bg-dark text-light border-secondary">
           <Modal.Title className="fw-bold">Šablon Treninga</Modal.Title>
@@ -201,45 +276,50 @@ const CommunityScreen = () => {
             <>
               <div className="d-flex align-items-center gap-3 mb-4 text-muted border-bottom border-secondary pb-3">
                 <div className="d-flex align-items-center gap-1">
-                  <FaClock className="text-info" /> Trajanje šablona: <strong className="text-white">{activeTemplate.duration}</strong>
+                  <FaClock className="text-info" /> Trajanje šablona: <strong className="text-white">{activeTemplate.duration} min</strong>
                 </div>
               </div>
 
               <Row className="g-3 mb-4">
-                {activeTemplate.exercises.map((ex, index) => (
-                  <Col key={index} xs={12} md={6}>
-                    <div className="p-3 rounded border border-secondary h-100" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
-                      <h6 className="text-primary fw-bold mb-2 d-flex align-items-center gap-1">
-                        <FaDumbbell /> {ex.name} <span className="text-muted small">({ex.category})</span>
-                      </h6>
-                      <Table size="sm" borderless responsive className="text-light text-center mb-0">
-                        <thead>
-                          <tr className="text-muted small border-bottom border-secondary">
-                            <th>Serija</th>
-                            <th>Kilaža</th>
-                            <th>Ponavljanja</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ex.sets.map((s, sIdx) => (
-                            <tr key={sIdx}>
-                              <td>{sIdx + 1}</td>
-                              <td className="text-info">{s.weight} kg</td>
-                              <td className="text-warning">{s.reps} reps</td>
+                {activeTemplate.exercises && activeTemplate.exercises.map((ex, index) => {
+                  const exerciseName = ex.exercise?.name || ex.name || 'Vežba';
+                  const exerciseCategory = ex.exercise?.category || ex.category || '-';
+
+                  return (
+                    <Col key={index} xs={12} md={6}>
+                      <div className="p-3 rounded border border-secondary h-100" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
+                        <h6 className="text-primary fw-bold mb-2 d-flex align-items-center gap-1 text-capitalize">
+                          <FaDumbbell /> {exerciseName} <span className="text-muted small">({exerciseCategory})</span>
+                        </h6>
+                        <Table size="sm" borderless responsive className="text-light text-center mb-0">
+                          <thead>
+                            <tr className="text-muted small border-bottom border-secondary">
+                              <th>Serija</th>
+                              <th>Kilaža</th>
+                              <th>Ponavljanja</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </div>
-                  </Col>
-                ))}
+                          </thead>
+                          <tbody>
+                            {ex.sets && ex.sets.map((s, sIdx) => (
+                              <tr key={sIdx}>
+                                <td>{sIdx + 1}</td>
+                                <td className="text-info">{s.weight} kg</td>
+                                <td className="text-warning">{s.reps} reps</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </Col>
+                  );
+                })}
               </Row>
 
               <div className="d-grid">
                 <Button 
                   variant="success" 
                   size="lg" 
-                  className="fw-bold"
+                  className="fw-bold d-flex align-items-center justify-content-center gap-2"
                   onClick={() => handleUseTemplate(activeTemplate)}
                 >
                   ⚡ Koristi šablon
