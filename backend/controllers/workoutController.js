@@ -1,31 +1,54 @@
 const Workout = require('../models/Workout');
 const Exercise = require('../models/Exercise');
 
-// @desc    Sačuvaj završen trening
+// @desc    Sačuvaj završen trening (Samo odrađene serije)
 // @route   POST /api/workouts
 exports.createWorkout = async (req, res) => {
   try {
-    const { user, duration, exercises } = req.body;
+    const { user, title, duration, exercises } = req.body;
 
     if (!user) {
       return res.status(401).json({ success: false, error: 'Morate biti ulogovani da biste sačuvali trening.' });
     }
 
-    // Mapiramo i izvlačimo nazive vežbi iz baze kako bismo zadovoljili staru Mongoose validaciju
-    const formattedExercises = await Promise.all(
-      exercises.map(async (ex) => {
-        const foundEx = await Exercise.findById(ex.exercise);
-        return {
-          exercise: ex.exercise,
-          name: foundEx ? foundEx.name : 'Kastom Vežba', // Automatski puni exercises.X.name
-          sets: ex.sets
-        };
-      })
-    );
+    // Prolazimo kroz vežbe i filtriramo samo odrađene serije
+    const formattedExercises = [];
+
+    for (const ex of exercises) {
+      // Filtriramo samo serije koje imaju done: true
+      const doneSets = ex.sets
+        .filter(s => s.done === true)
+        .map(s => ({
+          weight: Number(s.weight) || 0,
+          reps: Number(s.reps) || 0
+        }));
+
+      // Ako vežba ima bar jednu odrađenu seriju, ubacujemo je u trening
+      if (doneSets.length > 0) {
+        try {
+          const foundEx = await Exercise.findById(ex.exercise);
+          formattedExercises.push({
+            exercise: ex.exercise || null,
+            name: foundEx ? foundEx.name : (ex.name || 'Kastom Vežba'),
+            sets: doneSets
+          });
+        } catch (err) {
+          formattedExercises.push({
+            exercise: ex.exercise || null,
+            name: ex.name || 'Kastom Vežba',
+            sets: doneSets
+          });
+        }
+      }
+    }
+
+    if (formattedExercises.length === 0) {
+      return res.status(400).json({ success: false, error: 'Nemate nijednu odrađenu (otkačenu) seriju na treningu.' });
+    }
 
     const workout = await Workout.create({
       user,
-      title: `Trening - ${duration}`, // Automatski puni naslov
+      title: title || `Trening - ${duration}`,
       duration,
       exercises: formattedExercises
     });
@@ -37,7 +60,6 @@ exports.createWorkout = async (req, res) => {
 };
 
 // @desc    Preuzmi sve treninge ulogovanog korisnika za Istoriju
-// @route   GET /api/workouts/user/:userId
 exports.getUserWorkouts = async (req, res) => {
   try {
     const workouts = await Workout.find({ user: req.params.userId })
@@ -51,7 +73,6 @@ exports.getUserWorkouts = async (req, res) => {
 };
 
 // @desc    Preuzmi prethodne serije za specifičnu vežbu korisnika
-// @route   GET /api/workouts/previous/:userId/:exerciseId
 exports.getPreviousExerciseInfo = async (req, res) => {
   try {
     const { userId, exerciseId } = req.params;
@@ -66,7 +87,7 @@ exports.getPreviousExerciseInfo = async (req, res) => {
     }
 
     const targetExercise = lastWorkout.exercises.find(
-      (e) => e.exercise.toString() === exerciseId
+      (e) => e.exercise && e.exercise.toString() === exerciseId
     );
 
     res.status(200).json({ success: true, data: targetExercise ? targetExercise.sets : null });

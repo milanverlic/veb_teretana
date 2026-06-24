@@ -10,12 +10,10 @@ const HistoryScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Čitamo localStorage odmah na početku komponente
   const userInfo = localStorage.getItem('userInfo') ? JSON.parse(localStorage.getItem('userInfo')) : null;
   const userId = userInfo ? (userInfo.id || userInfo._id) : null;
 
   useEffect(() => {
-    // Ako korisnik nije ulogovan, odmah ga preusmeri na login
     if (!userId) {
       navigate('/login');
       return;
@@ -25,7 +23,6 @@ const HistoryScreen = () => {
       try {
         setLoading(true);
         const { data } = await axios.get(`http://localhost:5000/api/workouts/user/${userId}`);
-        
         if (data.success) {
           setWorkouts(data.data);
         }
@@ -38,7 +35,6 @@ const HistoryScreen = () => {
     };
 
     fetchHistory();
-    // U niz zavisnosti stavljamo samo userId i navigate kako bismo izbegli beskonačnu petlju
   }, [userId, navigate]);
 
   if (loading) {
@@ -74,9 +70,13 @@ const HistoryScreen = () => {
           return (
             <Card key={workout._id} className="mb-4 border-0 shadow-sm text-light" style={{ backgroundColor: 'rgba(30, 41, 59, 0.95)' }}>
               <Card.Header className="border-secondary d-flex justify-content-between align-items-center py-3" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
-                <div className="d-flex align-items-center gap-2 text-white-50">
-                  <FaCalendarAlt className="text-primary" />
-                  <span className="fw-bold text-white">{date}</span>
+                <div className="d-flex flex-column">
+                  {/* PRIKAZ KASTOM NAZIVA TRENINGA */}
+                  <span className="fs-4 fw-bold text-white mb-1">{workout.title || 'Trening Snage'}</span>
+                  <div className="d-flex align-items-center gap-2 text-white-50 small">
+                    <FaCalendarAlt className="text-primary" />
+                    <span>{date}</span>
+                  </div>
                 </div>
                 <div className="d-flex align-items-center gap-2 text-muted">
                   <FaClock className="text-info" />
@@ -92,7 +92,7 @@ const HistoryScreen = () => {
                           <FaDumbbell size={16} /> 
                           {ex.exercise ? ex.exercise.name : (ex.name || 'Kastom Vežba')}
                         </h5>
-                        <Table responsive borderless className="text-light text-center mb-0">
+                        <table className="table table-responsive table-borderless text-light text-center mb-0">
                           <thead>
                             <tr className="text-muted small border-bottom border-secondary">
                               <th>Serija</th>
@@ -109,7 +109,7 @@ const HistoryScreen = () => {
                               </tr>
                             ))}
                           </tbody>
-                        </Table>
+                        </table>
                       </div>
                     </Col>
                   ))}

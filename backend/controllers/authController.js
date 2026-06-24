@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 // @route   POST /api/auth/register
 exports.register = async (req, res) => {
   try {
-    // 1. Dodaj username ovde u izvlačenje iz req.body
     const { name, username, email, password, role } = req.body;
 
     let user = await User.findOne({ email });
@@ -13,7 +12,6 @@ exports.register = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Korisnik sa ovim email-om već postoji' });
     }
 
-    // Provera i za jedinstven username
     let usernameExists = await User.findOne({ username });
     if (usernameExists) {
       return res.status(400).json({ success: false, error: 'Korisničko ime je zauzeto' });
@@ -22,7 +20,6 @@ exports.register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 2. Dodaj username ovde u kreiranje
     user = await User.create({
       name,
       username,
@@ -31,7 +28,12 @@ exports.register = async (req, res) => {
       role
     });
 
-    res.status(201).json({ success: true, data: { id: user._id, name: user.name, username: user.username, email: user.email, role: user.role } });
+    // Vraćamo i 'data' i '_id' i 'id' radi potpune kompatibilnosti sa frontendom
+    res.status(201).json({ 
+      success: true, 
+      data: { id: user._id, _id: user._id, name: user.name, username: user.username, email: user.email, role: user.role },
+      user: { id: user._id, _id: user._id, name: user.name, username: user.username, email: user.email, role: user.role }
+    });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
@@ -43,22 +45,22 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Provera da li email postoji
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ success: false, error: 'Pogrešni kredencijali' });
     }
 
-    // Provera da li je šifra ispravna
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ success: false, error: 'Pogrešni kredencijali' });
     }
 
-    // Vraćamo uspeh i osnovne podatke (kasnije ćemo ovde dodati JWT token)
+    const userData = { id: user._id, _id: user._id, name: user.name, email: user.email, role: user.role };
+
     res.status(200).json({
       success: true,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      data: userData,
+      user: userData
     });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });

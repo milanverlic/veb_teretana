@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Button, Modal, ListGroup, Table, Form } from 'react-bootstrap';
-import { FaPlus, FaCheck, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaTrash, FaPen } from 'react-icons/fa';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -15,12 +15,35 @@ const ActiveWorkoutScreen = () => {
     }
   }, [userInfo, navigate]);
 
-  const [activeExercises, setActiveExercises] = useState([]);
+  // --- PERSISTENT STATE ---
+  const [workoutTitle, setWorkoutTitle] = useState(() => {
+    return localStorage.getItem('fitflow_title') || 'Trening';
+  });
+  const [activeExercises, setActiveExercises] = useState(() => {
+    const saved = localStorage.getItem('fitflow_active_exercises');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [seconds, setSeconds] = useState(() => {
+    const savedTime = localStorage.getItem('fitflow_seconds');
+    return savedTime ? Number(savedTime) : 0;
+  });
+
   const [allDbExercises, setAllDbExercises] = useState([]);
   const [showSelectModal, setShowSelectModal] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
-  // Učitavanje vežbi iz baze
+  useEffect(() => {
+    localStorage.setItem('fitflow_title', workoutTitle);
+  }, [workoutTitle]);
+
+  useEffect(() => {
+    localStorage.setItem('fitflow_active_exercises', JSON.stringify(activeExercises));
+  }, [activeExercises]);
+
+  useEffect(() => {
+    localStorage.setItem('fitflow_seconds', seconds.toString());
+  }, [seconds]);
+
   useEffect(() => {
     const fetchDbExercises = async () => {
       try {
@@ -35,11 +58,10 @@ const ActiveWorkoutScreen = () => {
     fetchDbExercises();
   }, []);
 
-  // PROVERAVAMO DA LI JE STIGAO ŠABLON IZ ZAJEDNICE
   useEffect(() => {
     if (location.state && location.state.templateExercises) {
       const template = location.state.templateExercises.map((ex) => ({
-        _id: ex.exerciseId || `custom_${Date.now()}_${Math.random()}`, // Generiše ID ako je kastom vežba
+        _id: ex.exerciseId || `custom_${Date.now()}_${Math.random()}`,
         name: ex.name,
         category: ex.category,
         previousSets: [],
@@ -51,6 +73,8 @@ const ActiveWorkoutScreen = () => {
         }))
       }));
       setActiveExercises(template);
+      setWorkoutTitle('Učitan šablon');
+      window.history.replaceState({}, document.title);
     }
   }, [location.state]);
 
@@ -134,23 +158,43 @@ const ActiveWorkoutScreen = () => {
     }));
   };
 
+  const clearWorkoutCache = () => {
+    localStorage.removeItem('fitflow_title');
+    localStorage.removeItem('fitflow_active_exercises');
+    localStorage.removeItem('fitflow_seconds');
+  };
+
+  const handleCancelWorkout = () => {
+    if (window.confirm('Da li ste sigurni da želite da odustanete od ovog treninga? Svi uneti podaci će se obrisati.')) {
+      clearWorkoutCache();
+      navigate('/');
+      window.location.reload();
+    }
+  };
+
   const handleFinishWorkout = async () => {
-    if (activeExercises.length === 0) {
-      alert('Morate dodati bar jednu vežbu.');
+    // Provera da li postoji bar jedna otkačena serija
+    const hasAnyDoneSet = activeExercises.some(ex => ex.sets.some(s => s.done === true));
+    
+    if (!hasAnyDoneSet) {
+      alert('Morate označiti bar jednu seriju kao odrađenu (klikom na zeleni checkmark) da biste završili trening.');
       return;
     }
 
+    // MAPIRANJE: Ovde sada eksplicitno šaljemo 'done: s.done' za svaku seriju backendu!
     const formattedExercises = activeExercises.map(ex => ({
-      exercise: ex._id.toString().startsWith('custom_') ? null : ex._id, // Sprečava pad baze za tuđe kastom vežbe
+      exercise: ex._id.toString().startsWith('custom_') ? null : ex._id,
       name: ex.name,
       sets: ex.sets.map(s => ({
         weight: Number(s.weight) || 0,
-        reps: Number(s.reps) || 0
+        reps: Number(s.reps) || 0,
+        done: s.done // KLJUČNA LINIJA: Šalje se tačno stanje (true/false)
       }))
     }));
 
     const workoutData = {
       user: userInfo.id || userInfo._id,
+      title: workoutTitle,
       duration: formatTime(seconds),
       exercises: formattedExercises
     };
@@ -158,7 +202,8 @@ const ActiveWorkoutScreen = () => {
     try {
       const { data } = await axios.post('http://localhost:5000/api/workouts', workoutData);
       if (data.success) {
-        alert('Trening uspešno sačuvan! 🚀');
+        alert('Trening uspešno sačuvan u istoriju! 💪🚀');
+        clearWorkoutCache();
         navigate('/history');
       }
     } catch (err) {
@@ -168,19 +213,38 @@ const ActiveWorkoutScreen = () => {
 
   return (
     <Container className="py-4 text-light">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h1 className="fw-bold mb-0 text-white">Trening</h1>
+      <div className="d-flex justify-content-between align-items-start mb-4">
+        <div className="w-70">
+          {isEditingTitle ? (
+            <Form.Control 
+              type="text" 
+              value={workoutTitle} 
+              onChange={(e) => setWorkoutTitle(e.target.value)}
+              onBlur={() => setIsEditingTitle(false)}
+              autoFocus
+              className="bg-dark text-white border-primary fs-2 fw-bold p-1 mb-1"
+              style={{ maxWidth: '350px' }}
+            />
+          ) : (
+            <h1 className="fw-bold mb-0 text-white d-flex align-items-center gap-2" style={{ cursor: 'pointer' }} onClick={() => setIsEditingTitle(true)}>
+              {workoutTitle} <FaPen size={16} className="text-muted" />
+            </h1>
+          )}
           <p className="text-muted mb-0">Vreme: <span className="text-info fw-bold">{formatTime(seconds)}</span></p>
         </div>
-        <Button variant="success" size="lg" className="fw-bold px-4" onClick={handleFinishWorkout}>
-          Završi
-        </Button>
+        <div className="d-flex gap-2">
+          <Button variant="danger" className="fw-bold px-3 opacity-75" onClick={handleCancelWorkout}>
+            Odustani
+          </Button>
+          <Button variant="success" className="fw-bold px-4 shadow" onClick={handleFinishWorkout}>
+            Završi
+          </Button>
+        </div>
       </div>
 
       {activeExercises.length === 0 ? (
         <div className="text-center p-5 rounded border border-secondary my-4" style={{ backgroundColor: 'rgba(30, 41, 59, 0.4)' }}>
-          <p className="text-white-50 fs-5 mb-0">Dodaj vežbe ili učitaj šablon.</p>
+          <p className="text-white-50 fs-5 mb-0">Trening teče u pozadini. Klikni na dugme ispod da dodaš prvu vežbu!</p>
         </div>
       ) : (
         activeExercises.map((ex) => (
@@ -213,6 +277,7 @@ const ActiveWorkoutScreen = () => {
                       <td>
                         <Form.Control 
                           type="number" 
+                          placeholder="0"
                           value={set.weight}
                           disabled={set.done}
                           onChange={(e) => handleSetChange(ex._id, idx, 'weight', e.target.value)}
@@ -223,6 +288,7 @@ const ActiveWorkoutScreen = () => {
                       <td>
                         <Form.Control 
                           type="number" 
+                          placeholder="0"
                           value={set.reps}
                           disabled={set.done}
                           onChange={(e) => handleSetChange(ex._id, idx, 'reps', e.target.value)}
@@ -231,7 +297,11 @@ const ActiveWorkoutScreen = () => {
                         />
                       </td>
                       <td>
-                        <Button variant={set.done ? "success" : "outline-secondary"} size="sm" onClick={() => toggleSetDone(ex._id, idx)}>
+                        <Button 
+                          variant={set.done ? "success" : "outline-secondary"} 
+                          size="sm" 
+                          onClick={() => toggleSetDone(ex._id, idx)}
+                        >
                           <FaCheck />
                         </Button>
                       </td>
@@ -248,7 +318,7 @@ const ActiveWorkoutScreen = () => {
       )}
 
       <div className="d-grid gap-3 mt-4">
-        <Button variant="primary" size="lg" className="fw-bold py-3" onClick={() => setShowSelectModal(true)}>
+        <Button variant="primary" size="lg" className="fw-bold py-3 shadow" onClick={() => setShowSelectModal(true)}>
           Dodaj Vežbu
         </Button>
       </div>
