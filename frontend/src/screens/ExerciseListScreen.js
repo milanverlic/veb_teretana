@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Button, Spinner, Modal } from 'react-bootstrap';
-import { FaDumbbell, FaSearch, FaInfoCircle } from 'react-icons/fa';
+import { FaDumbbell, FaSearch, FaInfoCircle, FaPlus } from 'react-icons/fa';
 import axios from 'axios';
 
-const ExercisesScreen = () => {
+const ExerciseListScreen = () => {
   const userInfo = localStorage.getItem('userInfo') ? JSON.parse(localStorage.getItem('userInfo')) : null;
   const userId = userInfo ? (userInfo.id || userInfo._id) : null;
 
@@ -12,29 +12,36 @@ const ExercisesScreen = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Sve');
 
-  // NOVO: Stanja za modal sa detaljnim opisom vežbe
+  // Stanja za modal sa detaljnim opisom vežbe
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [activeExercise, setActiveExercise] = useState(null);
 
-  useEffect(() => {
-    const fetchExercises = async () => {
-      try {
-        setLoading(true);
-        const { data } = await axios.get(`http://localhost:5000/api/exercises?userId=${userId}`);
-        if (data.success) {
-          setExercises(data.data);
-        }
-        setLoading(false);
-      } catch (err) {
-        console.error('Greška pri dobijanju vežbi:', err);
-        setLoading(false);
+  // Stanja za modal "Dodaj Svoju Vežbu"
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newCategory, setNewCategory] = useState('Grudi');
+  const [newDescription, setNewDescription] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const categories = ['Sve', 'Grudi', 'Leđa', 'Noge', 'Ramena', 'Ruke', 'Trbušnjaci'];
+
+  const fetchExercises = async () => {
+    try {
+      setLoading(true);
+      const { data } = await axios.get(`http://localhost:5000/api/exercises?userId=${userId}`);
+      if (data.success) {
+        setExercises(data.data);
       }
-    };
+      setLoading(false);
+    } catch (err) {
+      console.error('Greška pri dobijanju vežbi:', err);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchExercises();
   }, [userId]);
-
-  // Kategorije za filtriranje
-  const categories = ['Sve', 'Grudi', 'Leđa', 'Noge', 'Ramena', 'Ruke', 'Trbušnjaci'];
 
   // Filtriranje vežbi na osnovu pretrage i izabrane kategorije
   const filteredExercises = exercises.filter((ex) => {
@@ -43,10 +50,42 @@ const ExercisesScreen = () => {
     return matchesSearch && matchesCategory;
   });
 
-  // NOVO: Funkcija koja otvara modal i postavlja podatke o izabranoj vežbi
   const handleOpenDetails = (exercise) => {
     setActiveExercise(exercise);
     setShowDetailsModal(true);
+  };
+
+  // Funkcija za kreiranje nove personalizovane vežbe
+  const handleCreateExercise = async (e) => {
+    e.preventDefault();
+    if (!newName.trim()) {
+      alert('Molimo unesite naziv vežbe.');
+      return;
+    }
+
+    try {
+      setAdding(true);
+      const exerciseData = {
+        name: newName,
+        category: newCategory,
+        description: newDescription,
+        userId: userId 
+      };
+
+      const { data } = await axios.post('http://localhost:5000/api/exercises', exerciseData);
+      if (data.success) {
+        alert('Vežba uspešno dodata u bazu! 🏋️‍♂️');
+        setNewName('');
+        setNewDescription('');
+        setShowAddModal(false);
+        fetchExercises(); 
+      }
+      setAdding(false);
+    } catch (err) {
+      console.error(err);
+      alert('Greška pri dodavanju vežbe.');
+      setAdding(false);
+    }
   };
 
   if (loading) {
@@ -60,9 +99,22 @@ const ExercisesScreen = () => {
 
   return (
     <Container className="py-4 text-light">
-      <div className="mb-4">
-        <h2 className="fw-bold text-white mb-1">Baza Vežbi</h2>
-        <p className="text-muted">Izaberi vežbu da pogledaš detaljan opis i pravilno izvođenje</p>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+          <h2 className="fw-bold text-white mb-1">Baza Vežbi</h2>
+          <p className="text-muted mb-0">Izaberi vežbu da pogledaš detaljan opis i pravilno izvođenje</p>
+        </div>
+        
+        {/* POPRAVLJENO: Dugme se prikazuje SAMO ako userInfo postoji u memoriji */}
+        {userInfo && (
+          <Button 
+            variant="primary" 
+            className="fw-bold d-flex align-items-center gap-2 px-4 shadow-sm"
+            onClick={() => setShowAddModal(true)}
+          >
+            <FaPlus /> Dodaj Svoju
+          </Button>
+        )}
       </div>
 
       {/* FILTERI I PRETRAGA */}
@@ -104,7 +156,6 @@ const ExercisesScreen = () => {
         ) : (
           filteredExercises.map((ex) => (
             <Col xs={12} sm={6} md={4} lg={3} key={ex._id}>
-              {/* DODATO: style cursor: pointer i onClick koji otvara modal */}
               <Card 
                 className="border-0 h-100 shadow text-center text-light" 
                 style={{ backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}
@@ -141,14 +192,8 @@ const ExercisesScreen = () => {
         )}
       </Row>
 
-      {/* NOVO: MODAL ZA DETALJAN PRIKAZ OPISA VEŽBE */}
-      <Modal 
-        show={showDetailsModal} 
-        onHide={() => setShowDetailsModal(false)} 
-        centered 
-        size="md"
-        className="glass-modal"
-      >
+      {/* MODAL ZA DETALJAN PRIKAZ OPISA VEŽBE */}
+      <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)} centered size="md" className="glass-modal">
         <Modal.Header closeButton className="bg-dark text-light border-secondary">
           <Modal.Title className="fw-bold text-capitalize d-flex align-items-center gap-2">
             <FaInfoCircle className="text-primary" /> {activeExercise?.name}
@@ -172,9 +217,9 @@ const ExercisesScreen = () => {
                 </div>
               )}
               
-              <div className="text-start bg-slate p-3 rounded" style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="text-start p-3 rounded" style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h6 className="fw-bold text-white mb-2">Opis i Izvođenje Vežbe:</h6>
-                <p className="text-white-50 mb-0 style-scroll" style={{ whiteSpace: 'pre-line', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                <p className="text-white-50 mb-0" style={{ whiteSpace: 'pre-line', fontSize: '0.95rem', lineHeight: '1.5' }}>
                   {activeExercise.description || 'Opis za ovu vežbu trenutno nije dostupan.'}
                 </p>
               </div>
@@ -187,8 +232,60 @@ const ExercisesScreen = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {/* MODAL ZA DODAVANJE SOPSTVENE VEŽBE */}
+      <Modal show={showAddModal} onHide={() => setShowAddModal(false)} centered className="glass-modal">
+        <Modal.Header closeButton className="bg-dark text-light border-secondary">
+          <Modal.Title className="fw-bold">Dodaj Svoju Vežbu</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="bg-dark text-light p-4">
+          <Form onSubmit={handleCreateExercise}>
+            <Form.Group className="mb-3">
+              <Form.Label className="text-white-50 small">Ime vežbe</Form.Label>
+              <Form.Control 
+                type="text" 
+                placeholder="Npr. Potisak bučicama" 
+                className="bg-secondary text-white border-secondary fw-bold"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="text-white-50 small">Mišićna grupa / Deo tela</Form.Label>
+              <Form.Select 
+                className="bg-secondary text-white border-secondary fw-bold text-capitalize"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+              >
+                {categories.filter(c => c !== 'Sve').map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-4">
+              <Form.Label className="text-white-50 small">Opis i tehnika izvođenja</Form.Label>
+              <Form.Control 
+                as="textarea" 
+                rows={3} 
+                placeholder="Upiši kratko uputstvo za pravilno izvođenje..." 
+                className="bg-secondary text-white border-secondary"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </Form.Group>
+
+            <div className="d-grid">
+              <Button type="submit" variant="primary" className="fw-bold py-2" disabled={adding}>
+                {adding ? 'Čuvam u bazu...' : '✓ Sačuvaj u bazu'}
+              </Button>
+            </div>
+          </Form>
+        </Modal.Body>
+      </Modal>
     </Container>
   );
 };
 
-export default ExercisesScreen;
+export default ExerciseListScreen;
